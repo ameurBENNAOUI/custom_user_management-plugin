@@ -306,7 +306,7 @@ function custom_user_manager_activation() {
         'openai_key' => '',
         'stability_api_key' => '',
         'paypal_client_id' => '',
-        'paypal_client_secret' => '',
+        'paypal_client_secret' => ' ',
         // 'paypal_client_secret' => '',
         'paypal_enable_points' => '0'
     );
