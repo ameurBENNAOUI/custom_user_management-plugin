@@ -1,5 +1,9 @@
 {
     "require": {
-        "paypal/rest-api-sdk-php": "^1.14"
+        "paypal/rest-api-sdk-php": "^1.14",
+        "kreait/firebase-php": "^5.26",
+        "stripe/stripe-php": "^10.12",
+        "google/cloud-firestore": "^0.1.0",
+        "guzzlehttp/guzzle": "^7.5"
     }
 }

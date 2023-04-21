@@ -1,5 +1,52 @@
 <?php
 
+require_once 'firebase.php';
+
+// function save_options_to_firebase($option, $old_value, $value) {
+//     $firebase = get_firebase_instance();
+//     $database = $firebase->getDatabase();
+
+//     // Set the options in the Firebase Realtime Database
+//     $database->getReference('custom_user_manager_settings')->set($value);
+// }
+
+
+// function save_options_to_firebase($option, $old_value, $value) {
+//     error_log('Saving options to Firebase...');
+
+//     try {
+//         $firebase = get_firebase_instance();
+//         $database = $firebase->getDatabase();
+
+//         // Set the options in the Firebase Realtime Database
+//         $database->getReference('custom_user_manager_settings')->set($value);
+//         error_log('Options saved successfully in Firebase.');
+//     } catch (Exception $e) {
+//         error_log('Error saving options to Firebase: ' . $e->getMessage());
+//     }
+// }
+
+
+function save_options_to_firebase($option, $old_value, $value) {
+    $firebase = get_firebase_instance();
+    $database = $firebase->getReference(); // Get the root reference
+
+    // Replace 'your_path' with the path where you want to save data in the Realtime Database
+    $path = $option;
+
+    // Write data to the specified path
+    $database->getChild($path)->set($value);
+}
+
+add_action('updated_option', 'save_options_to_firebase', 10, 3);
+
+
+
+// add_action('update_option_custom_user_manager_settings', 'save_options_to_firebase', 10, 3);
+// add_action('updated_option', 'save_options_to_firebase', 10, 3);
+
+
+
 // Display the custom user manager settings page
 function custom_user_manager_settings() {
     // Check user capabilities
@@ -40,6 +87,19 @@ function custom_user_manager_settings_init() {
     add_settings_field('paypal_client_id', 'YOUR_PAYPAL_CLIENT_ID', 'paypal_client_id_field_callback', 'custom_user_manager_settings', 'paypal_api_section');
     add_settings_field('paypal_client_secret', 'YOUR_PAYPAL_CLIENT_SECRET', 'paypal_client_secret_field_callback', 'custom_user_manager_settings', 'paypal_api_section');
     add_settings_field('paypal_enable_points', 'Enable or Disable Points', 'paypal_enable_points_field_callback', 'custom_user_manager_settings', 'paypal_api_section');
+
+
+        // Section 4: Point Settings
+        add_settings_section('point_settings_section', 'Point Settings', '', 'custom_user_manager_settings');
+        add_settings_field('point_per_currency', '100 Point per', 'point_per_currency_field_callback', 'custom_user_manager_settings', 'point_settings_section');
+        add_settings_field('currency', 'Currency', 'currency_field_callback', 'custom_user_manager_settings', 'point_settings_section');
+    
+
+        // Section 5: Stripe API Keys
+add_settings_section('stripe_api_keys_section', 'Stripe API Keys', '', 'custom_user_manager_settings');
+add_settings_field('stripe_publishable_key', 'Stripe Publishable Key', 'stripe_publishable_key_field_callback', 'custom_user_manager_settings', 'stripe_api_keys_section');
+add_settings_field('stripe_secret_key', 'Stripe Secret Key', 'stripe_secret_key_field_callback', 'custom_user_manager_settings', 'stripe_api_keys_section');
+
 }
 
 add_action('admin_init', 'custom_user_manager_settings_init');
@@ -83,3 +143,33 @@ function paypal_enable_points_field_callback() {
 }
 
 
+
+
+// Callback function for displaying the point per currency field
+function point_per_currency_field_callback() {
+    $options = get_option('custom_user_manager_settings');
+    echo '<input type="text" name="custom_user_manager_settings[point_per_currency]" value="' . esc_attr($options['point_per_currency']) . '">  ( Euro/USD )';
+}
+
+// Callback function for displaying the currency dropdown field
+function currency_field_callback() {
+    $options = get_option('custom_user_manager_settings');
+    $currency = isset($options['currency']) ? $options['currency'] : '';
+    echo '<select name="custom_user_manager_settings[currency]">';
+    echo '<option value="USD" ' . selected($currency, 'USD', false) . '>USD</option>';
+    echo '<option value="EUR" ' . selected($currency, 'EUR', false) . '>EUR</option>';
+    echo '</select>';
+}
+
+
+
+
+function stripe_publishable_key_field_callback() {
+    $options = get_option('custom_user_manager_settings');
+    echo '<input type="text" name="custom_user_manager_settings[stripe_publishable_key]" value="' . esc_attr($options['stripe_publishable_key']) . '">';
+}
+
+function stripe_secret_key_field_callback() {
+    $options = get_option('custom_user_manager_settings');
+    echo '<input type="text" name="custom_user_manager_settings[stripe_secret_key]" value="' . esc_attr($options['stripe_secret_key']) . '">';
+}
