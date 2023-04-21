@@ -77,11 +77,21 @@ function custom_user_manager_process_payment(WP_REST_Request $request) {
         return new WP_Error('invalid_parameters', 'Missing required parameters.', array('status' => 400));
     }
 
-    $amount = $points / 100; // 100 points = 1 USD
+    // $amount = $points / 100; // 100 points = 1 USD
+    $payment_amount = $points / 100; // 100 points = 1 USD
 
     // return $amount;:
 
     $api_context = require plugin_dir_path(__FILE__) . 'paypal.php';
+
+    // $apiContext->setConfig(
+    //     array(
+    //         'mode' => 'sandbox', // or 'live' for production
+    //         'log.LogEnabled' => true,
+    //         'log.FileName' => plugin_dir_path(__FILE__) . 'PayPal.log',
+    //         'log.LogLevel' => 'DEBUG', // 'DEBUG', 'INFO', 'WARN', 'ERROR'
+    //     )
+    // );
 
     if ($payment_method === 'paypal') {
         // Process PayPal payment
@@ -90,7 +100,9 @@ function custom_user_manager_process_payment(WP_REST_Request $request) {
 
         $amount = new \PayPal\Api\Amount();
         $amount->setCurrency('USD')
-            ->setTotal(10.00);
+            // ->setTotal(10.00);
+            ->setTotal($payment_amount);
+
 
         $transaction = new \PayPal\Api\Transaction();
         $transaction->setAmount($amount)
@@ -100,10 +112,12 @@ function custom_user_manager_process_payment(WP_REST_Request $request) {
 
         // return $redirectUrls ;
         // $redirectUrls->setReturnUrl('YOUR_RETURN_URL')
-        $redirectUrls->setReturnUrl(site_url('wp-json/custom-user-manager/v1/execute-payment?user_id=' . $user_id . '&points=' . $points))
+        // $redirectUrls->setReturnUrl(site_url('wp-json/custom-user-manager/v1/success-payment?user_id=' . $user_id . '&points=' . $points . '&payment_id={payment_id}'))
+
+        $redirectUrls->setReturnUrl(site_url('wp-json/custom-user-manager/v1/success-payment?user_id=' . $user_id . '&points=' . $points))
         // $redirectUrls->setReturnUrl('https://aitnews.com/')
 
-            ->setCancelUrl(site_url('wp-json/custom-user-manager/v1/execute-payment?user_id=' . $user_id ));
+                    ->setCancelUrl(site_url('wp-json/custom-user-manager/v1/execute-payment?user_id=' . $user_id ));
 
         $payment = new \PayPal\Api\Payment();
         $payment->setIntent('sale')
@@ -121,9 +135,12 @@ function custom_user_manager_process_payment(WP_REST_Request $request) {
         } catch (Exception $ex) {
             // Log and handle the exception
             error_log($ex->getMessage());
-            return new WP_Error('paypal_error', 'PayPal payment failed.', array('status' => 500));
+            return new WP_Error('paypal_error', 'PayPal payment failed.',$ex->getMessage(), array('status' => 500));
         }
     }
+
+
+    
     
     elseif ($payment_method === 'stripe') {
 
@@ -138,7 +155,7 @@ function custom_user_manager_process_payment(WP_REST_Request $request) {
                 'line_items' => [[
                     'price_data' => [
                         'currency' => 'usd',
-                        'unit_amount' => $amount * 100,
+                        'unit_amount' => $payment_amount * 100,
                         'product_data' => [
                             'name' => 'Points',
                             'description' => 'Purchase of ' . $points . ' points',
@@ -147,7 +164,10 @@ function custom_user_manager_process_payment(WP_REST_Request $request) {
                     'quantity' => 1,
                 ]],
                 'mode' => 'payment',
-                'success_url' => site_url('wp-json/custom-user-manager/v1/success-payment?user_id=' . $user_id . '&points=' . $points),
+
+                'success_url' => site_url('wp-json/custom-user-manager/v1/success-payment?user_id=' . $user_id . '&points=' . $points . '&session_id={CHECKOUT_SESSION_ID}'),
+
+                // 'success_url' => site_url('wp-json/custom-user-manager/v1/success-payment?user_id=' . $user_id . '&points=' . $points),
                 'cancel_url' => site_url('wp-json/custom-user-manager/v1/cancel-payment?user_id=' . $user_id),
             ]);
             return $session->url;
@@ -179,22 +199,99 @@ function custom_user_manager_process_payment(WP_REST_Request $request) {
     ));
 }
 
+
 function custom_user_manager_success_payment(WP_REST_Request $request) {
     $user_id = $request->get_param('user_id');
     $points = $request->get_param('points');
+    $payment_id = $request->get_param('payment_id');
+    $session_id = $request->get_param('session_id');
 
-    // Add points to the user
-    $current_points = get_user_meta($user_id, 'custom_user_points', true) ?: 0;
-    $new_points = $current_points + $points;
-    update_user_meta($user_id, 'custom_user_points', $new_points);
+    $is_payment_successful = false;
 
-    // Return a success response or redirect the user to a success page
+    // Check PayPal payment
+    if ($payment_id) {
+        $api_context = require plugin_dir_path(__FILE__) . 'paypal.php';
+        try {
+            $payment = \PayPal\Api\Payment::get($payment_id, $api_context);
+            if ($payment->getState() == 'approved') {
+                $is_payment_successful = true;
+            }
+        } catch (Exception $ex) {
+            // Log and handle the exception
+            error_log($ex->getMessage());
+        }
+    }
+    // Check Stripe payment
+    elseif ($session_id) {
+        require_once 'vendor/autoload.php';
+        $api_key = 'sk_test_51Mz7TkB4hXzPYrYHdqONkwJeHk68el4hYxSDxBAH808Cm71L6HKJFiwWnUEadD3kDJu3WmpvSVHHuVb6Qx8hlDVl00a20HeoPa';
+        \Stripe\Stripe::setApiKey($api_key);
+
+        try {
+            $session = \Stripe\Checkout\Session::retrieve($session_id);
+            if ($session->payment_status == 'paid') {
+                $is_payment_successful = true;
+            }
+        } catch (Exception $e) {
+            // Log and handle the exception
+            error_log($e->getMessage());
+        }
+    }
+
+    if ($is_payment_successful) {
+        custom_user_manager_add_points_on_payment($user_id, $points);
+        wp_send_json_success('Points added successfully.');
+    } else {
+        wp_send_json_error('Payment verification failed.');
+    }
 }
 
+
+// function custom_user_manager_success_payment(WP_REST_Request $request) {
+//     $user_id = $request->get_param('user_id');
+//     $points = $request->get_param('points');
+
+//     // wp_send_json_success('Points added successfully.');
+
+
+//     custom_user_manager_add_points_on_paymenent($user_id, $points) ;
+
+//     wp_send_json_success('Points added successfully.');
+
+
+
+// }
+
+function custom_user_manager_add_points_on_payment($user_id, $points) {
+
+    if (empty($user_id) || empty($points)) {
+        return array('error' => 'Invalid user ID or points value.');
+    }
+
+    // Get the Firebase Auth instance
+    $auth = custom_user_manager_get_firebase_instance();
+    
+    // Fetch the user record
+    $userRecord = $auth->getUser($user_id);
+
+    // Get the current points from custom attributes
+    $current_points = isset($userRecord->customClaims['points']) ? $userRecord->customClaims['points'] : 0;
+
+    // Update the custom attributes with the new points
+    $updatedCustomAttributes = array_merge($userRecord->customClaims, ['points' => $current_points + $points]);
+    $auth->setCustomUserAttributes($user_id, $updatedCustomAttributes);
+    return array('success' => 'Points added successfully.');
+
+}
+
+
+
 function custom_user_manager_cancel_payment(WP_REST_Request $request) {
+
     $user_id = $request->get_param('user_id');
 
-    // Handle the canceled payment, e.g., show an error message or redirect the user to a cancel page
+    wp_send_json_success('Orders Cancelled.');
+
 }
 
 

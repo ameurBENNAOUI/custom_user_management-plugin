@@ -8,22 +8,20 @@ use PayPal\Rest\ApiContext;
 $client_id = 'AXFm7EbWmA9-B6scAAvsMf0u3oVWvZ2TOe4Dz91769sTdZdYFPXZpSMXBQO0w4kExHSUEOMjsmHqMw9f';
 $client_secret = 'EBl_7t22eUira3Z0Z4eLvwB-RAvH_00GzfCPfB9wTB3M1aHw2M-2dLt0G993_p3XiNA3BQaOroMdwu7o';
 
-$api_context = new ApiContext(
+$apiContext = new ApiContext(
     new OAuthTokenCredential(
         $client_id,
         $client_secret
     )
 );
 
-// Set the API context to use the live or sandbox environment
-$api_context->setConfig(
+$apiContext->setConfig(
     array(
-        'mode' => 'sandbox', // Change this to 'live' for the live environment
+        'mode' => 'sandbox', // or 'live' for production
         'log.LogEnabled' => true,
-        'log.FileName' => '/PayPal.log',
-        'log.LogLevel' => 'DEBUG',
-        'cache.enabled' => true,
+        'log.FileName' => plugin_dir_path(__FILE__) . 'PayPal.log',
+        'log.LogLevel' => 'DEBUG', // 'DEBUG', 'INFO', 'WARN', 'ERROR'
     )
 );
 
-return $api_context;
+return $apiContext;

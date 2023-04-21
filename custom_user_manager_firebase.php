@@ -49,7 +49,7 @@ function custom_user_manager_firebase_users() {
 
     // Display the table
     echo '<div class="wrap">';
-    echo '<h1>Firebase Users</h1>';
+    echo '<h1>Firebase Users 02</h1>';
     echo '<table class="wp-list-table widefat fixed striped">';
     echo '<thead><tr>';
     echo '<th>ID</th>';
